@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    name: plato-rlinq-domain-casaaccountsummary-cmc-obrh
+    app: plato-rlinq-domain-casaaccountsummary-cmc-obrh
+  name: plato-rlinq-domain-casaaccountsummary-cmc-obrh
+  namespace: {{ .Values.Namespace }}
+spec:
+  replicas: 0
+  selector: 
+    matchLabels:
+      name: plato-rlinq-domain-casaaccountsummary-cmc-obrh
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: /
+        prometheus.io/port: "9988"
+        prometheus.io/scrape: "true"
+      labels:
+        name: plato-rlinq-domain-casaaccountsummary-cmc-obrh
+        app: plato-rlinq-domain-casaaccountsummary-cmc-obrh
+    spec:
+      containers:
+      - image: {{ .Values.ApplicationRegistry }}/{{ .Values.Environment }}/plato-cz-cmc-tomcat:9.5.0.3
+        imagePullPolicy: IfNotPresent
+        name: cmc-server
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/scratch/scripts/podLogDirBackup.sh"]
+        env:
+        - name: Domain_Name
+          value: rlinq-domain
+        - name: Cluster_Name
+          value: casaaccountsummary
+        - name: Pod_Name
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: TomcatLogPath
+          value: "/scratch/logs/$(Domain_Name)/$(Cluster_Name)/$(Pod_Name)/server-logs"
+        envFrom:
+        - secretRef:
+            name: rlinq-domain-cmc-db-resources-secret
+        - secretRef:
+            name: rlinq-domain-casaaccountsummary-secret
+        - configMapRef:
+            name: rlinq-domain-cmc-db-resources-cm
+        - configMapRef:
+            name: rlinq-domain-casaaccountsummary-resources-cm
+        volumeMounts:
+        - name: logs-volume
+          mountPath: /scratch/logs/rlinq-domain
+        - name: emp-dir
+          mountPath: /scratch/jars/
+        resources:
+          limits:
+            cpu: "400m"
+          requests:
+            cpu: "300m"
+        livenessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 180
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 3
+        readinessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 120
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 3
+      initContainers:
+      - name: cmc-cz-cn
+        image: {{ .Values.ApplicationRegistry }}/{{ .Values.Environment }}/cmc-cz:9.6.0.0
+        command: ['sh', '-c', 'cp -r /scratch/jars/. /lib-dir']
+        volumeMounts:
+        - name: emp-dir
+          mountPath: /lib-dir
+      - name: casaaccountsummary-cz-cn
+        image: {{ .Values.ApplicationRegistry }}/{{ .Values.Environment }}/casaaccountsummary-cz:9.6.0.0
+        command: ['sh', '-c', 'cp -r /scratch/jars/. /lib-dir']
+        volumeMounts:
+        - name: emp-dir
+          mountPath: /lib-dir
+      volumes:
+      - name: logs-volume
+        persistentVolumeClaim:
+          claimName: {{ .Values.Environment }}-rlinq-domain-cluster-log-pvc
+      - name: emp-dir
+        emptyDir: {}
+      restartPolicy: Always
