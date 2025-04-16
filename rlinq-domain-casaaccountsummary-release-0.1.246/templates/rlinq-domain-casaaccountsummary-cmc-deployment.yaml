@@ -87,7 +87,7 @@ spec:
         - name: emp-dir
           mountPath: /lib-dir
       - name: casaaccountsummary-cz-cn
-        image: {{ .Values.ApplicationRegistry }}/{{ .Values.Environment }}/casaaccountsummary-cz:9.6.0.3
+        image: {{ .Values.ApplicationRegistry }}/{{ .Values.Environment }}/casaaccountsummary-cz:9.6.0.2
         command: ['sh', '-c', 'cp -r /scratch/jars/. /lib-dir']
         volumeMounts:
         - name: emp-dir
